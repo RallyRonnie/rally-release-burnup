@@ -1,0 +1,14 @@
+{
+    "name": "Release-Based Sprint Burn Down",
+    "className": "CustomApp",
+    "server": "https://rally1.rallydev.com",
+    "sdk": "2.0p5",
+    "javascript": [
+        "pxs.js",
+        "iteration-data-model.js",
+        "App.js"
+    ],
+    "css": [
+        "app.css"
+    ]
+}
