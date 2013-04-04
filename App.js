@@ -5,6 +5,7 @@ Ext.define('CustomApp', {
     defaults: { margin: 5 },
     items: [{xtype:'container',itemId:'selector_box'},{xtype:'container',itemId:'chart_box'}],
     selected_release: null,
+    items_in_release: [],
     launch: function() {
         this._addTimeboxSelector();
     },
@@ -66,7 +67,24 @@ Ext.define('CustomApp', {
                         }
                         me.iterations[item.get('Name')].push(item);
                     });
-                    me._makeIterationSlices();
+                    me._getItemsInRelease();
+                },
+                scope: this
+            }
+        });
+    },
+    _getItemsInRelease: function() {
+        window.console && console.log("_getItemsInRelease");
+        var me = this;
+        this.item_store = Ext.create('Rally.data.WsapiDataStore',{
+            model: 'UserStory',
+            autoLoad: true,
+            filters: {property:'Release.Name',operator:'=',value:me.selected_release.get('Name')},
+            fetch:['PlanEstimate','ScheduleState','Iteration','Name'],
+            listeners: {
+                load: function(store,data,success){
+                    this.items_in_release = data;
+                    this._makeIterationSlices();
                 },
                 scope: this
             }
@@ -82,17 +100,31 @@ Ext.define('CustomApp', {
         return date_array;
     },
     _makeIterationSlices: function() {
-        console.log(this.iterations);
-        //var date_array = this._getEndDates(this.iterations);
+        window.console && console.log( "_makeIterationSlices");
         var data_hash = {}; // key will be name
         for ( var name in this.iterations ) {
             var end_date = this.iterations[name][0].get('EndDate');
             data_hash[name] = Ext.create('Rally.pxs.data.IterationDataModel', { Name: name, IsoEndDate: end_date });
         }
-        
+        // add points from stories
+        Ext.Array.each(this.items_in_release,function(record){
+            if ( record.get('Iteration') ) {
+                var sprint = record.get('Iteration').Name;
+               
+                if ( data_hash[sprint] ) {
+                    data_hash[sprint].addScheduledItem(record.getData());
+                } else { 
+                    window.console && console.log("WARNING: Iteration not defined",sprint);
+                }
+            } else {
+                window.console && console.log("WARNING: Item not in sprint", record );
+            }
+        });
+
         this._showChart(data_hash);
     },
     _showChart: function(data_hash){
+        window.console && console.log("_showChart");
         var data_array = this._hashToArray(data_hash);
         var chart_store = Ext.create('Ext.data.Store',{
             autoLoad: true,
@@ -104,7 +136,9 @@ Ext.define('CustomApp', {
         this.chart = Ext.create('Rally.ui.chart.Chart',{
             height: 400,
             store: chart_store,
-            series: [{type:'column',dataIndex:'temp',visible:true}],
+            series: [
+                {type:'column',dataIndex:'PointsAccepted',visible:true},
+                {type:'column',dataIndex:'PointsPlanned',visible:true} ],
             chartConfig: {
                 title: {text:'Program Burn Up',align:'center'},
                 xAxis: {
@@ -130,7 +164,6 @@ Ext.define('CustomApp', {
         var today = Rally.util.DateTime.toIsoString(new Date(),false).replace(/T.*$/,"");
         for (var key in hash ) {
             if (hash.hasOwnProperty(key)){
-                console.log( key, today );
 //                var snap = hash[key];
 //                if ( key > today ) {
 //                    snap.set('Future',true);

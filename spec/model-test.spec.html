@@ -1,0 +1,33 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+  <head>
+    <!--
+    **  for testing 
+    -->
+    <script type='text/javascript' src='/Users/johnmartin/views/rally/integrations/jmartin/apps/lib/jasmine/jasmine.js'>
+    </script>
+    <script type='text/javascript' src='/Users/johnmartin/views/rally/integrations/jmartin/apps/lib/jasmine/jasmine-html.js'>
+    </script>
+    <link href='/Users/johnmartin/views/rally/integrations/jmartin/apps/lib/jasmine/jasmine.css' rel='stylesheet' type='text/css'>
+    </link>
+    <!-- the toolkit so we can have the ExtJS stuff -->
+    <script type="text/javascript" src="https://rally1.rallydev.com/apps/2.0p5/sdk-debug.js"></script>
+      
+    <!--the code script(s) -->
+    <script type='text/javascript' src='../iteration-data-model.js'>
+    </script>
+    <!--the test script-->
+    <script type='text/javascript' src='iterationDataSpec.js'>
+    </script>
+  </head>
+  <body>
+    <!--Where everything starts-->
+    <script type='text/javascript'>
+        Rally.onReady(
+          function() {
+            jasmine.getEnv().addReporter(new jasmine.TrivialReporter());
+            jasmine.getEnv().execute();
+            });
+    </script>
+  </body>
+</html>
