@@ -36,7 +36,9 @@
                     {name:'ShortIsoEndDate', type: 'string', convert: makeShorterIsoDate, defaultValue: null },
                     {name:'Name',type:'string',defaultValue: "Iteration" },
                     {name:'PointsPlanned',type:'float',defaultValue: 0 },
-                    {name:'PointsAccepted',type:'float',defaultValue: 0 }
+                    {name:'PointsAccepted',type:'float',defaultValue: 0 },
+                    {name:'CumulativePointsPlanned',type:'float', defaultValue:0},
+                    {name:'CumulativePointsAccepted',type:'float',defaultValue:0}
                 ],
                 addScheduledItem: function(item) {
                     if ( item.PlanEstimate ) {
@@ -172,12 +174,27 @@
                             window.console && console.log("WARNING: Item not in sprint", record );
                         }
                     });
-            
+                    data_hash = this._calculateCumulativeData(data_hash);
                     this._showChart(data_hash);
+                },
+                _calculateCumulativeData: function(data_hash) {
+                    var total_points = 0;
+                    var total_accepted = 0;
+                    for ( var sprint in data_hash ) {
+                        if ( data_hash.hasOwnProperty(sprint) ) {
+                            total_points += data_hash[sprint].get('PointsPlanned');
+                            total_accepted += data_hash[sprint].get('PointsAccepted');
+                            data_hash[sprint].set('CumulativePointsPlanned', total_points);
+                            data_hash[sprint].set('CumulativePointsAccepted', total_accepted);
+                        }
+                    }
+                    return data_hash;
                 },
                 _showChart: function(data_hash){
                     window.console && console.log("_showChart");
                     var data_array = this._hashToArray(data_hash);
+                    var scope = data_array[data_array.length-1].CumulativePointsPlanned;
+            
                     var chart_store = Ext.create('Ext.data.Store',{
                         autoLoad: true,
                         data: {data:data_array},
@@ -189,16 +206,20 @@
                         height: 400,
                         store: chart_store,
                         series: [
-                            {type:'column',dataIndex:'PointsAccepted',visible:true},
-                            {type:'column',dataIndex:'PointsPlanned',visible:true} ],
+                            {type:'line',dataIndex:'CumulativePointsPlanned',name:'User Stories',visible:true},
+                            {type:'line',dataIndex:'CumulativePointsAccepted',name:'Stories Accepted',visible:true} ],
                         chartConfig: {
                             title: {text:'Program Burn Up',align:'center'},
+                            colors: ['#696','#00f'],
                             xAxis: {
                                 categories: this._getIterationNames(data_array)
                             },
                             yAxis: [{
                                 title: { text:"" },
-                                plotLines: [{color:'#000',width:2,value:0}]
+                                plotLines: [
+                                    {color:'#000',width:2,value:0},
+                                    {color:'#f00',width:2,value:scope}
+                                ]
                             }]
                         }
                     });

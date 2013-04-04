@@ -25,7 +25,9 @@ function makeShorterIsoDate(initial_date,record) {
         {name:'ShortIsoEndDate', type: 'string', convert: makeShorterIsoDate, defaultValue: null },
         {name:'Name',type:'string',defaultValue: "Iteration" },
         {name:'PointsPlanned',type:'float',defaultValue: 0 },
-        {name:'PointsAccepted',type:'float',defaultValue: 0 }
+        {name:'PointsAccepted',type:'float',defaultValue: 0 },
+        {name:'CumulativePointsPlanned',type:'float', defaultValue:0},
+        {name:'CumulativePointsAccepted',type:'float',defaultValue:0}
     ],
     addScheduledItem: function(item) {
         if ( item.PlanEstimate ) {
