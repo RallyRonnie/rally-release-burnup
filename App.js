@@ -1,3 +1,16 @@
+/*
+ * A burn up chart for the stories in a release, showing planned and accepted by iteration.
+ * 
+ * NOTES:
+ * ** This is about planning forward:
+ * ** The data is taken from when the report is run (does not use the lookback api).  That is, a point is counted
+ * as accepted for a sprint if right at this moment it is associated with a sprint and is accepted.  The planned line does
+ * not look back to what the initial or intermediate planning was.  So, if you move an item from one sprint to another,
+ * the chart will no longer show that it was planned for the other.  If you copy or split, it will show up as planned
+ * in the original, but then your acceptance will never converge to scope.
+ * **
+ */
+
 Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
@@ -172,10 +185,11 @@ Ext.define('CustomApp', {
             store: chart_store,
             series: [
                 {type:'line',dataIndex:'CumulativePointsPlanned',name:'User Stories',visible:true},
-                {type:'line',dataIndex:'CumulativePointsAccepted',name:'Stories Accepted',visible:true} ],
+                {type:'line',dataIndex:'CumulativePointsAccepted',name:'Stories Accepted',visible:true},
+                {type:'column',dataIndex:'CumulativeDeviation',name:'Gap from Required',visible: true}],
             chartConfig: {
                 title: {text:'Program Burn Up',align:'center'},
-                colors: ['#696','#00f'],
+                colors: ['#696','#00f','#c33'],
                 xAxis: {
                     categories: this._getIterationNames(data_array),
                     plotLines: [{color:'#000',width:2,value:current_sprint_index}]

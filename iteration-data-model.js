@@ -50,6 +50,16 @@ function convertCumulativeAccepted(initial_value,record) {
         return initial_value;
     }
 }
+function convertCumulativeDeviation(initial_value,record) {
+    if ( record.get('TemporalState') === "Future" ) {
+        return null;
+    } else {
+        var planned = record.get('CumulativePointsPlanned') || 0;
+        var accepted = record.get('CumulativePointsAccepted') || 0;
+        
+        return planned-accepted;
+    }
+}
  Ext.define('Rally.pxs.data.IterationDataModel',{
     extend: 'Ext.data.Model',
     fields: [
@@ -62,6 +72,7 @@ function convertCumulativeAccepted(initial_value,record) {
         {name:'PointsAccepted',type:'float',defaultValue: 0 },
         {name:'CumulativePointsPlanned',type:'float', defaultValue:0},
         {name:'CumulativePointsAccepted',type:'float',defaultValue:0, convert:convertCumulativeAccepted},
+        {name:'CumulativeDeviation',type:'float',defaultValue:0,convert: convertCumulativeDeviation},
         {name:'TemporalState',type:'string',defaultValue:'unknown',convert:setTemporalState}
     ],
     addScheduledItem: function(item) {
@@ -80,10 +91,14 @@ function convertCumulativeAccepted(initial_value,record) {
         var me = this;
         var changed_fields = this.callParent([field_name,new_value]);
         if (changed_fields) {
+            if ( Ext.Array.indexOf(changed_fields,"CumulativePointsPlanned") > -1 || Ext.Array.indexOf(changed_fields,"CumulativePointsAccepted") > -1 ){
+                this.set('CumulativeDeviation', -1);
+            }
             if ( Ext.Array.indexOf(changed_fields,"IsoEndDate") > -1 || Ext.Array.indexOf(changed_fields,"IsoStartDate") > -1 ){
                 this.set('TemporalState', setTemporalState("",this));
                 if ( this.get('TemporalState') === "Future" ) {
                     this.set('CumulativePointsAccepted',null);
+                    this.set('CumulativeDeviation',null);
                 }
             }
            

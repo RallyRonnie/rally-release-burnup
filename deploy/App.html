@@ -16,29 +16,75 @@
                 }
                 // assume if not a string, it's a date
                 return Rally.util.DateTime.toIsoString(initial_date,false);
-             }
-            function makeShorterIsoDate(initial_date,record) {
-                //window.console && console.log( initial_date, typeof(initial_date));
-                if ( initial_date === null ) {
-                    initial_date = record.get('IsoEndDate');
-                }
+            }
+             
+            function makeShorterIsoDate(initial_date) {
                 if ( typeof(initial_date) === "string" ) {
                     return initial_date.replace(/T.*$/,"");
                 }
                 // assume if not a string, it's a date
                 return Rally.util.DateTime.toIsoString(initial_date,false).replace(/T.*$/,"");
-             }
+            }
              
+            function makeShorterEndDate(initial_date,record) {
+                if ( initial_date === null ) {
+                    initial_date = record.get('IsoEndDate');
+                }
+                return makeShorterIsoDate(initial_date);
+            }
+            function makeShorterStartDate(initial_date,record) {
+                if ( initial_date === null ) {
+                    initial_date = record.get('IsoStartDate');
+                }
+                return makeShorterIsoDate(initial_date);
+             }
+            
+            function setTemporalState(initial_value,record) {
+                var today = new Date();
+                var start = Rally.util.DateTime.fromIsoString( record.get('IsoStartDate') );
+                var end = Rally.util.DateTime.fromIsoString( record.get('IsoEndDate') );
+                
+                var temporal_state = "Current";
+                if ( start > end ) {
+                    temporal_state = "Reversed";
+                } else if ( end < today ) {
+                    temporal_state = "Past";
+                } else if ( start > today ) {
+                    temporal_state = "Future";
+                }
+                return temporal_state;
+            }
+            function convertCumulativeAccepted(initial_value,record) {
+                if ( record.get('TemporalState') === "Future" ) {
+                    return null;
+                } else {
+                    return initial_value;
+                }
+            }
+            function convertCumulativeDeviation(initial_value,record) {
+                if ( record.get('TemporalState') === "Future" ) {
+                    return null;
+                } else {
+                    var planned = record.get('CumulativePointsPlanned') || 0;
+                    var accepted = record.get('CumulativePointsAccepted') || 0;
+                    
+                    return planned-accepted;
+                }
+            }
              Ext.define('Rally.pxs.data.IterationDataModel',{
                 extend: 'Ext.data.Model',
                 fields: [
                     {name:'IsoEndDate',type:'string',convert:makeIsoDate,defaultValue: new Date() },
-                    {name:'ShortIsoEndDate', type: 'string', convert: makeShorterIsoDate, defaultValue: null },
+                    {name:'ShortIsoEndDate', type: 'string', convert: makeShorterEndDate, defaultValue: null },
+                    {name:'IsoStartDate',type:'string',convert:makeIsoDate,defaultValue: new Date() },
+                    {name:'ShortIsoStartDate', type: 'string', convert: makeShorterStartDate, defaultValue: null },
                     {name:'Name',type:'string',defaultValue: "Iteration" },
                     {name:'PointsPlanned',type:'float',defaultValue: 0 },
                     {name:'PointsAccepted',type:'float',defaultValue: 0 },
                     {name:'CumulativePointsPlanned',type:'float', defaultValue:0},
-                    {name:'CumulativePointsAccepted',type:'float',defaultValue:0}
+                    {name:'CumulativePointsAccepted',type:'float',defaultValue:0, convert:convertCumulativeAccepted},
+                    {name:'CumulativeDeviation',type:'float',defaultValue:0,convert: convertCumulativeDeviation},
+                    {name:'TemporalState',type:'string',defaultValue:'unknown',convert:setTemporalState}
                 ],
                 addScheduledItem: function(item) {
                     if ( item.PlanEstimate ) {
@@ -51,8 +97,39 @@
                             this.set('PointsAccepted',item_points + current_accepted );
                         }
                     }
+                },
+                set: function(field_name,new_value) {
+                    var me = this;
+                    var changed_fields = this.callParent([field_name,new_value]);
+                    if (changed_fields) {
+                        if ( Ext.Array.indexOf(changed_fields,"CumulativePointsPlanned") > -1 || Ext.Array.indexOf(changed_fields,"CumulativePointsAccepted") > -1 ){
+                            this.set('CumulativeDeviation', -1);
+                        }
+                        if ( Ext.Array.indexOf(changed_fields,"IsoEndDate") > -1 || Ext.Array.indexOf(changed_fields,"IsoStartDate") > -1 ){
+                            this.set('TemporalState', setTemporalState("",this));
+                            if ( this.get('TemporalState') === "Future" ) {
+                                this.set('CumulativePointsAccepted',null);
+                                this.set('CumulativeDeviation',null);
+                            }
+                        }
+                       
+                    }
+                    return changed_fields;
                 }
-            });            Ext.define('CustomApp', {
+            });            /*
+             * A burn up chart for the stories in a release, showing planned and accepted by iteration.
+             * 
+             * NOTES:
+             * ** This is about planning forward:
+             * ** The data is taken from when the report is run (does not use the lookback api).  That is, a point is counted
+             * as accepted for a sprint if right at this moment it is associated with a sprint and is accepted.  The planned line does
+             * not look back to what the initial or intermediate planning was.  So, if you move an item from one sprint to another,
+             * the chart will no longer show that it was planned for the other.  If you copy or split, it will show up as planned
+             * in the original, but then your acceptance will never converge to scope.
+             * **
+             */
+            
+            Ext.define('CustomApp', {
                 extend: 'Rally.app.App',
                 componentCls: 'app',
                 version: "0.1",
@@ -158,24 +235,33 @@
                     var data_hash = {}; // key will be name
                     for ( var name in this.iterations ) {
                         var end_date = this.iterations[name][0].get('EndDate');
-                        data_hash[name] = Ext.create('Rally.pxs.data.IterationDataModel', { Name: name, IsoEndDate: end_date });
+                        var start_date = this.iterations[name][0].get('StartDate');
+                        data_hash[name] = Ext.create('Rally.pxs.data.IterationDataModel', { 
+                            Name: name, 
+                            IsoEndDate: end_date,
+                            IsoStartDate: start_date
+                        });
                     }
                     // add points from stories
-                    Ext.Array.each(this.items_in_release,function(record){
-                        if ( record.get('Iteration') ) {
-                            var sprint = record.get('Iteration').Name;
-                           
-                            if ( data_hash[sprint] ) {
-                                data_hash[sprint].addScheduledItem(record.getData());
-                            } else { 
-                                window.console && console.log("WARNING: Iteration not defined",sprint);
+                    if ( this.items_in_release.length === 0 ) {
+                        this.chart = this.down('#chart_box').add({xtype:'container',html:'No data found.'});
+                    } else {
+                        Ext.Array.each(this.items_in_release,function(record){
+                            if ( record.get('Iteration') ) {
+                                var sprint = record.get('Iteration').Name;
+                               
+                                if ( data_hash[sprint] ) {
+                                    data_hash[sprint].addScheduledItem(record.getData());
+                                } else { 
+                                    window.console && console.log("WARNING: Iteration not defined",sprint);
+                                }
+                            } else {
+                                window.console && console.log("WARNING: Item not in sprint", record );
                             }
-                        } else {
-                            window.console && console.log("WARNING: Item not in sprint", record );
-                        }
-                    });
-                    data_hash = this._calculateCumulativeData(data_hash);
-                    this._showChart(data_hash);
+                        });
+                        data_hash = this._calculateCumulativeData(data_hash);
+                        this._showChart(data_hash);
+                    }
                 },
                 _calculateCumulativeData: function(data_hash) {
                     var total_points = 0;
@@ -190,10 +276,20 @@
                     }
                     return data_hash;
                 },
+                _getCurrentSprintIndex: function(data_array) {
+                    var index = -1;
+                    Ext.Array.each(data_array, function(sprint,counter) {
+                        if(sprint && sprint.TemporalState === "Current" ) {
+                            index = counter;
+                        }
+                    });
+                    return index;
+                },
                 _showChart: function(data_hash){
                     window.console && console.log("_showChart");
                     var data_array = this._hashToArray(data_hash);
                     var scope = data_array[data_array.length-1].CumulativePointsPlanned;
+                    var current_sprint_index = this._getCurrentSprintIndex(data_array);
             
                     var chart_store = Ext.create('Ext.data.Store',{
                         autoLoad: true,
@@ -207,12 +303,14 @@
                         store: chart_store,
                         series: [
                             {type:'line',dataIndex:'CumulativePointsPlanned',name:'User Stories',visible:true},
-                            {type:'line',dataIndex:'CumulativePointsAccepted',name:'Stories Accepted',visible:true} ],
+                            {type:'line',dataIndex:'CumulativePointsAccepted',name:'Stories Accepted',visible:true},
+                            {type:'column',dataIndex:'CumulativeDeviation',name:'Gap from Required',visible: true}],
                         chartConfig: {
                             title: {text:'Program Burn Up',align:'center'},
-                            colors: ['#696','#00f'],
+                            colors: ['#696','#00f','#c33'],
                             xAxis: {
-                                categories: this._getIterationNames(data_array)
+                                categories: this._getIterationNames(data_array),
+                                plotLines: [{color:'#000',width:2,value:current_sprint_index}]
                             },
                             yAxis: [{
                                 title: { text:"" },

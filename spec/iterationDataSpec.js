@@ -79,4 +79,19 @@ describe("Iteration Data Model Tests", function(){
         model.set('CumulativePointsAccepted',5);
         expect(model.get('CumulativePointsAccepted')).toEqual(null);
     });
+    
+    it("should set Deviation when Cumulative Flow Numbers are set", function(){
+        var model = Ext.create('Rally.pxs.data.IterationDataModel',{
+            IsoStartDate: last_week,
+            IsoEndDate: next_week
+        });
+        model.set('CumulativePointsAccepted',5);
+        expect(model.get('CumulativeDeviation')).toEqual(-5);
+        
+        model.set('CumulativePointsPlanned',7);
+        expect(model.get('CumulativeDeviation')).toEqual(2);
+        
+        model.set('IsoStartDate',tomorrow);
+        expect(model.get('CumulativeDeviation')).toEqual(null);
+    });
 });
