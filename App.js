@@ -104,24 +104,33 @@ Ext.define('CustomApp', {
         var data_hash = {}; // key will be name
         for ( var name in this.iterations ) {
             var end_date = this.iterations[name][0].get('EndDate');
-            data_hash[name] = Ext.create('Rally.pxs.data.IterationDataModel', { Name: name, IsoEndDate: end_date });
+            var start_date = this.iterations[name][0].get('StartDate');
+            data_hash[name] = Ext.create('Rally.pxs.data.IterationDataModel', { 
+                Name: name, 
+                IsoEndDate: end_date,
+                IsoStartDate: start_date
+            });
         }
         // add points from stories
-        Ext.Array.each(this.items_in_release,function(record){
-            if ( record.get('Iteration') ) {
-                var sprint = record.get('Iteration').Name;
-               
-                if ( data_hash[sprint] ) {
-                    data_hash[sprint].addScheduledItem(record.getData());
-                } else { 
-                    window.console && console.log("WARNING: Iteration not defined",sprint);
+        if ( this.items_in_release.length === 0 ) {
+            this.chart = this.down('#chart_box').add({xtype:'container',html:'No data found.'});
+        } else {
+            Ext.Array.each(this.items_in_release,function(record){
+                if ( record.get('Iteration') ) {
+                    var sprint = record.get('Iteration').Name;
+                   
+                    if ( data_hash[sprint] ) {
+                        data_hash[sprint].addScheduledItem(record.getData());
+                    } else { 
+                        window.console && console.log("WARNING: Iteration not defined",sprint);
+                    }
+                } else {
+                    window.console && console.log("WARNING: Item not in sprint", record );
                 }
-            } else {
-                window.console && console.log("WARNING: Item not in sprint", record );
-            }
-        });
-        data_hash = this._calculateCumulativeData(data_hash);
-        this._showChart(data_hash);
+            });
+            data_hash = this._calculateCumulativeData(data_hash);
+            this._showChart(data_hash);
+        }
     },
     _calculateCumulativeData: function(data_hash) {
         var total_points = 0;
@@ -136,10 +145,20 @@ Ext.define('CustomApp', {
         }
         return data_hash;
     },
+    _getCurrentSprintIndex: function(data_array) {
+        var index = -1;
+        Ext.Array.each(data_array, function(sprint,counter) {
+            if(sprint && sprint.TemporalState === "Current" ) {
+                index = counter;
+            }
+        });
+        return index;
+    },
     _showChart: function(data_hash){
         window.console && console.log("_showChart");
         var data_array = this._hashToArray(data_hash);
         var scope = data_array[data_array.length-1].CumulativePointsPlanned;
+        var current_sprint_index = this._getCurrentSprintIndex(data_array);
 
         var chart_store = Ext.create('Ext.data.Store',{
             autoLoad: true,
@@ -158,7 +177,8 @@ Ext.define('CustomApp', {
                 title: {text:'Program Burn Up',align:'center'},
                 colors: ['#696','#00f'],
                 xAxis: {
-                    categories: this._getIterationNames(data_array)
+                    categories: this._getIterationNames(data_array),
+                    plotLines: [{color:'#000',width:2,value:current_sprint_index}]
                 },
                 yAxis: [{
                     title: { text:"" },
