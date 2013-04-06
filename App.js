@@ -72,6 +72,7 @@ Ext.define('CustomApp', {
             model: 'Iteration',
             autoLoad: true,
             filters: filters,
+            sorters: [{ property: 'StartDate' } ],
             listeners: {
                 load: function(store,data,success){
                     Ext.Array.each(data,function(item){
@@ -167,10 +168,63 @@ Ext.define('CustomApp', {
         });
         return index;
     },
+    _setTrend: function(sprints,scope) {
+        // Use Linear Least Squares: it assumes x is good and error is concentrated in Y values
+        window.console && console.log("_setTrend");
+        var velocity_array = [];
+        var x_array = [];
+        var got_one = false;
+        Ext.Array.each(sprints,function(sprint,index){
+            if ( sprint.TemporalState !== "Future") {
+                // drop leading zeroes
+                if ( got_one || sprint.CumulativePointsAccepted > 0 ) {
+                    got_one = true;
+                    x_array.push(index);
+                    velocity_array.push(sprint.CumulativePointsAccepted);
+                }
+            }
+        });
+        window.console && console.log( velocity_array );
+        if ( velocity_array.length < 3 ) { 
+            return sprints;
+        }
+        var sum_x = 0;
+        var sum_y = 0;
+        var sum_xy = 0;
+        var sum_xx = 0;
+
+        var number_of_points = velocity_array.length;
+        sum_x = Ext.Array.sum(x_array);
+        sum_y = Ext.Array.sum(velocity_array);
+        Ext.Array.each(x_array, function(x,index){
+            sum_xy += x*velocity_array[index];
+            sum_xx += x*x;
+        });
+console.log(sum_x,sum_y,sum_xy,sum_xx);
+        // y = ax + b
+        var a = (number_of_points*sum_xy - sum_x*sum_y) / (number_of_points*sum_xx - sum_x*sum_x);
+        var b = (sum_y/number_of_points) - (a*sum_x)/number_of_points;
+console.log("y=" + a + "x" + "+" + b);
+        Ext.Array.each(sprints,function(sprint,index){
+            if (index>=x_array[0]) {
+                if (a*index+b <= scope ) {
+                    sprint.TrendPoint=a*index + b;
+                } else {
+                    sprint.TrendPoint = scope;
+                }
+                
+            } else {
+                sprint.TrendPoint=null;
+            }
+        });
+        return sprints;
+    },
     _showChart: function(data_hash){
         window.console && console.log("_showChart");
         var data_array = this._hashToArray(data_hash);
         var scope = data_array[data_array.length-1].CumulativePointsPlanned;
+        data_array = this._setTrend(data_array,scope);
+        
         var current_sprint_index = this._getCurrentSprintIndex(data_array);
 
         var chart_store = Ext.create('Ext.data.Store',{
@@ -186,7 +240,8 @@ Ext.define('CustomApp', {
             series: [
                 {type:'line',dataIndex:'CumulativePointsPlanned',name:'User Stories',visible:true},
                 {type:'line',dataIndex:'CumulativePointsAccepted',name:'Stories Accepted',visible:true},
-                {type:'column',dataIndex:'CumulativeDeviation',name:'Gap from Required',visible: true}],
+                {type:'column',dataIndex:'CumulativeDeviation',name:'Gap from Required',visible: true},
+                {type:'line',dataIndex:'TrendPoint',name:'Trend',visible:true}],
             chartConfig: {
                 title: {text:'Program Burn Up',align:'center'},
                 colors: ['#696','#00f','#c33'],

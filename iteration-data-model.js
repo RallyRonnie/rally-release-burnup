@@ -73,7 +73,8 @@ function convertCumulativeDeviation(initial_value,record) {
         {name:'CumulativePointsPlanned',type:'float', defaultValue:0},
         {name:'CumulativePointsAccepted',type:'float',defaultValue:0, convert:convertCumulativeAccepted},
         {name:'CumulativeDeviation',type:'float',defaultValue:0,convert: convertCumulativeDeviation},
-        {name:'TemporalState',type:'string',defaultValue:'unknown',convert:setTemporalState}
+        {name:'TemporalState',type:'string',defaultValue:'unknown',convert:setTemporalState},
+        {name:'TrendPoint', type:'float',defaultValue: null }
     ],
     addScheduledItem: function(item) {
         if ( item.PlanEstimate ) {

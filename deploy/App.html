@@ -190,6 +190,7 @@
                         model: 'Iteration',
                         autoLoad: true,
                         filters: filters,
+                        sorters: [{ property: 'StartDate' } ],
                         listeners: {
                             load: function(store,data,success){
                                 Ext.Array.each(data,function(item){
