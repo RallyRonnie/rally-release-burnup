@@ -217,6 +217,26 @@ console.log("y=" + a + "x" + "+" + b);
                 sprint.TrendPoint=null;
             }
         });
+        
+        if ( sprints[sprints.length-1].TrendPoint < scope ) {
+            // we aren't going to make it in the planned set of sprints
+            var MAX_EXTRA = 5;
+            var added_counter = 1;
+            var trend_point = 0;
+            var start_point = sprints.length-1;
+            while( added_counter <= MAX_EXTRA && trend_point <=scope ) {
+                var x = start_point + added_counter;
+                trend_point = a*x + b;
+                sprints.push({
+                    Name:"+" + added_counter,
+                    TrendPoint: trend_point,
+                    CumulativePointsPlanned:null,
+                    CumulativePointsAccepted:null,
+                    TemporalState:"Future"
+                });
+                added_counter++;
+            }
+        }
         return sprints;
     },
     _showChart: function(data_hash){
