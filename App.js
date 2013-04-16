@@ -19,19 +19,44 @@ Ext.define('CustomApp', {
     items: [{xtype:'container',itemId:'selector_box'},{xtype:'container',itemId:'chart_box'}],
     selected_release: null,
     items_in_release: [],
+    applied_state:null,
     launch: function() {
         this._addTimeboxSelector();
     },
     _addTimeboxSelector: function() {
+        var me = this;
         this.down('#selector_box').add({
             xtype:'rallyreleasecombobox',
             itemId:'release_box',
+            stateId: 'pxs.burnup.release',
+            stateful: true,
+            stateEvents: ['change'],
+            getState: function() {
+                window.console && console.log( ".......saving state", this.getRawValue() );
+                return { value: this.getRawValue() };
+            },
+            applyState: function(state) {
+                window.console && console.log(".......applying state", state);
+                if ( state && state.value ) {
+                    me.applied_state = state.value;
+                    //this.setRawValue(state.value);
+                }
+            },
             listeners: {
                 change: function(rb,newValue,oldValue) {
                     this.selected_release = rb.getRecord();
                     this._getScopedReleases();
                 },
                 ready: function(rb) {
+                    window.console && console.log( ".......release ready", this.applied_state );
+                    // applyState (above) seems to work before the data is loaded
+                    if (this.applied_state) {
+                        window.console && console.log(".......re-applying state", this.applied_state);
+                        var same_release = rb.findRecordByDisplay(this.applied_state);
+                        if ( same_release ) {
+                            rb.setValue(same_release);
+                        }
+                    }
                     this.selected_release = rb.getRecord();
                     this._getScopedReleases();
                 },
@@ -258,8 +283,8 @@ console.log("y=" + a + "x" + "+" + b);
             height: 400,
             store: chart_store,
             series: [
-                {type:'line',dataIndex:'CumulativePointsPlanned',name:'User Stories',visible:true},
-                {type:'line',dataIndex:'CumulativePointsAccepted',name:'Stories Accepted',visible:true},
+                {type:'line',dataIndex:'CumulativePointsPlanned',name:'Points Planned',visible:true},
+                {type:'line',dataIndex:'CumulativePointsAccepted',name:'Points Accepted',visible:true},
                 {type:'column',dataIndex:'CumulativeDeviation',name:'Gap from Required',visible: true},
                 {type:'line',dataIndex:'TrendPoint',name:'Trend',visible:true}],
             chartConfig: {
@@ -292,10 +317,6 @@ console.log("y=" + a + "x" + "+" + b);
         var today = Rally.util.DateTime.toIsoString(new Date(),false).replace(/T.*$/,"");
         for (var key in hash ) {
             if (hash.hasOwnProperty(key)){
-//                var snap = hash[key];
-//                if ( key > today ) {
-//                    snap.set('Future',true);
-//                }
                 // not sure why the model can't be pushed straight into the store
                 the_array.push(hash[key].getData());
             }

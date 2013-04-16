@@ -1,4 +1,8 @@
-function makeIsoDate(initial_date,record) {
+ function limitDecimals(initial_value) {
+    return parseInt( 10*initial_value, 10 ) / 10;
+ }
+ 
+ function makeIsoDate(initial_date,record) {
     //window.console && console.log( initial_date, typeof(initial_date));
     if ( typeof(initial_date) === "string" ) {
         return initial_date;
@@ -74,7 +78,7 @@ function convertCumulativeDeviation(initial_value,record) {
         {name:'CumulativePointsAccepted',type:'float',defaultValue:0, convert:convertCumulativeAccepted},
         {name:'CumulativeDeviation',type:'float',defaultValue:0,convert: convertCumulativeDeviation},
         {name:'TemporalState',type:'string',defaultValue:'unknown',convert:setTemporalState},
-        {name:'TrendPoint', type:'float',defaultValue: null }
+        {name:'TrendPoint', type:'float',defaultValue: null, convert: limitDecimals }
     ],
     addScheduledItem: function(item) {
         if ( item.PlanEstimate ) {

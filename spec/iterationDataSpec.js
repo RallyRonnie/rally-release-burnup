@@ -70,6 +70,16 @@ describe("Iteration Data Model Tests", function(){
             IsoStartDate: last_week,
             IsoEndDate: next_week
         });
+        model.set('TrendPoint',5.3333333333);
+        expect(model.get('TrendPoint')).toEqual(5.3);
+        
+    });
+    
+    it("should be careful of decimals on Trend", function(){
+        var model = Ext.create('Rally.pxs.data.IterationDataModel',{
+            IsoStartDate: last_week,
+            IsoEndDate: next_week
+        });
         model.set('CumulativePointsAccepted',5);
         expect(model.get('CumulativePointsAccepted')).toEqual(5);
         
