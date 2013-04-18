@@ -8,7 +8,7 @@
  * not look back to what the initial or intermediate planning was.  So, if you move an item from one sprint to another,
  * the chart will no longer show that it was planned for the other.  If you copy or split, it will show up as planned
  * in the original, but then your acceptance will never converge to scope.
- * **
+ * ** To show the chart broken down by team (and normalized), change "show_teams" to true
  */
 
 Ext.define('CustomApp', {
@@ -16,6 +16,7 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     version: "0.3",
     defaults: { margin: 5 },
+    show_teams: true,
     items: [
         {xtype:'container',itemId:'selector_box'},
         {xtype:'container',itemId:'chart_box'},
@@ -90,7 +91,8 @@ Ext.define('CustomApp', {
     _getIterations: function(){
         var me = this;
         this.iterations = {};
-
+        this.team_names = {}; // key is team objectid
+        this.team_data = {}; // key will be team objectid
         Ext.create('Rally.data.WsapiDataStore',{
             model: 'Iteration',
             autoLoad: true,
@@ -98,6 +100,8 @@ Ext.define('CustomApp', {
             listeners: {
                 load: function(store,data,success){
                     Ext.Array.each(data,function(item){
+                        me.team_names[item.get('Project').ObjectID] = item.get('Project').Name;
+                        me.team_data[item.get('Project').ObjectID] = {};
                         if (!me.iterations[item.get('Name')]) {
                             me.iterations[item.get('Name')] = [];
                         }
@@ -146,7 +150,7 @@ Ext.define('CustomApp', {
             model: 'UserStory',
             autoLoad: true,
             filters: {property:'Release.Name',operator:'=',value:me.selected_release.get('Name')},
-            fetch:['PlanEstimate','ScheduleState','Iteration','Name'],
+            fetch:['PlanEstimate','ScheduleState','Iteration','Name','Project','ObjectID'],
             listeners: {
                 load: function(store,data,success){
                     this.items_in_release = data;
@@ -171,6 +175,7 @@ Ext.define('CustomApp', {
         for ( var name in this.iterations ) {
             var end_date = this.iterations[name][0].get('EndDate');
             var start_date = this.iterations[name][0].get('StartDate');
+
             data_hash[name] = Ext.create('Rally.pxs.data.IterationDataModel', { 
                 Name: name, 
                 IsoEndDate: end_date,
@@ -184,7 +189,16 @@ Ext.define('CustomApp', {
             Ext.Array.each(this.items_in_release,function(record){
                 if ( record.get('Iteration') ) {
                     var sprint = record.get('Iteration').Name;
-                   
+                    var project_oid = record.get('Project').ObjectID;
+                    window.console && console.log( project_oid );
+                    if ( ! this.team_data[project_oid][name] ) {
+                        this.team_data[project_oid][name] = Ext.create('Rally.pxs.data.IterationDataModel', { 
+                            Name: name, 
+                            IsoEndDate: end_date,
+                            IsoStartDate: start_date
+                        });
+                    }
+            
                     if ( data_hash[sprint] ) {
                         data_hash[sprint].addScheduledItem(record.getData());
                     } else { 
@@ -253,11 +267,9 @@ Ext.define('CustomApp', {
             sum_xy += x*velocity_array[index];
             sum_xx += x*x;
         });
-console.log(sum_x,sum_y,sum_xy,sum_xx);
         // y = ax + b
         var a = (number_of_points*sum_xy - sum_x*sum_y) / (number_of_points*sum_xx - sum_x*sum_x);
         var b = (sum_y/number_of_points) - (a*sum_x)/number_of_points;
-console.log("y=" + a + "x" + "+" + b);
         Ext.Array.each(sprints,function(sprint,index){
             if (index>=x_array[0]) {
                 if (a*index+b <= scope ) {
@@ -293,7 +305,14 @@ console.log("y=" + a + "x" + "+" + b);
         return sprints;
     },
     _showChart: function(data_hash){
-        window.console && console.log("_showChart", data_hash);
+        window.console && console.log("_showChart", data_hash, this.show_teams);
+        if ( this.show_teams ) {
+            this._showSegregatedChart();
+        } else {
+            this._showCombinedChart(data_hash);
+        }
+    },
+    _showCombinedChart: function(data_hash) {
         var data_array = this._hashToArray(data_hash);
         var scope = data_array[data_array.length-1].CumulativePointsPlanned;
         data_array = this._setTrend(data_array,scope);
