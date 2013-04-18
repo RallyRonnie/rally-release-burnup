@@ -37,11 +37,9 @@ Ext.define('CustomApp', {
             stateful: true,
             stateEvents: ['change'],
             getState: function() {
-                window.console && console.log( ".......saving state", this.getRawValue() );
                 return { value: this.getRawValue() };
             },
             applyState: function(state) {
-                window.console && console.log(".......applying state", state);
                 if ( state && state.value ) {
                     me.applied_state = state.value;
                     //this.setRawValue(state.value);
@@ -53,10 +51,8 @@ Ext.define('CustomApp', {
                     this._getScopedReleases();
                 },
                 ready: function(rb) {
-                    window.console && console.log( ".......release ready", this.applied_state );
                     // applyState (above) seems to work before the data is loaded
                     if (this.applied_state) {
-                        window.console && console.log(".......re-applying state", this.applied_state);
                         var same_release = rb.findRecordByDisplay(this.applied_state);
                         if ( same_release ) {
                             rb.setValue(same_release);
@@ -97,11 +93,12 @@ Ext.define('CustomApp', {
             model: 'Iteration',
             autoLoad: true,
             sorters: [{ property: 'StartDate' } ],
+            fetch: ['Name','Project','StartDate','EndDate','ObjectID'],
             listeners: {
                 load: function(store,data,success){
                     Ext.Array.each(data,function(item){
                         me.team_names[item.get('Project').ObjectID] = item.get('Project').Name;
-                        me.team_data[item.get('Project').ObjectID] = {};
+                        me.team_data[item.get('Project').Name] = {};
                         if (!me.iterations[item.get('Name')]) {
                             me.iterations[item.get('Name')] = [];
                         }
@@ -150,7 +147,8 @@ Ext.define('CustomApp', {
             model: 'UserStory',
             autoLoad: true,
             filters: {property:'Release.Name',operator:'=',value:me.selected_release.get('Name')},
-            fetch:['PlanEstimate','ScheduleState','Iteration','Name','Project','ObjectID'],
+            sorters: [{property:'Iteration'}],
+            fetch:['PlanEstimate','ScheduleState','Iteration','Name','Project','ObjectID','EndDate','StartDate'],
             listeners: {
                 load: function(store,data,success){
                     this.items_in_release = data;
@@ -171,6 +169,7 @@ Ext.define('CustomApp', {
     },
     _makeIterationSlices: function() {
         window.console && console.log( "_makeIterationSlices");
+        var me = this;
         var data_hash = {}; // key will be name
         for ( var name in this.iterations ) {
             var end_date = this.iterations[name][0].get('EndDate');
@@ -189,11 +188,15 @@ Ext.define('CustomApp', {
             Ext.Array.each(this.items_in_release,function(record){
                 if ( record.get('Iteration') ) {
                     var sprint = record.get('Iteration').Name;
+                    var end_date = record.get('Iteration').EndDate;
+                    var start_date = record.get('Iteration').StartDate;
+                    
                     var project_oid = record.get('Project').ObjectID;
-                    window.console && console.log( project_oid );
-                    if ( ! this.team_data[project_oid][name] ) {
-                        this.team_data[project_oid][name] = Ext.create('Rally.pxs.data.IterationDataModel', { 
-                            Name: name, 
+                    var project_name = me.team_names[project_oid];
+                    if ( ! me.team_data[project_name] ) { me.team_data[project_name] = {}; }
+                    if ( ! me.team_data[project_name][sprint] ) {
+                        me.team_data[project_name][sprint] = Ext.create('Rally.pxs.data.IterationDataModel', { 
+                            Name: sprint, 
                             IsoEndDate: end_date,
                             IsoStartDate: start_date
                         });
@@ -201,6 +204,7 @@ Ext.define('CustomApp', {
             
                     if ( data_hash[sprint] ) {
                         data_hash[sprint].addScheduledItem(record.getData());
+                        me.team_data[project_name][sprint].addScheduledItem(record.getData());
                     } else { 
                         window.console && console.log("WARNING: Iteration not defined",sprint);
                     }
@@ -209,10 +213,17 @@ Ext.define('CustomApp', {
                 }
             });
             data_hash = this._calculateCumulativeData(data_hash);
+            for ( var project_name in me.team_data ) {
+                if ( me.team_data.hasOwnProperty(project_name) ) {
+                    window.console && console.log("...",project_name);
+                    me.team_data[project_name] = this._calculateCumulativeData(me.team_data[project_name])
+                }
+            }
             this._showChart(data_hash);
         }
     },
     _calculateCumulativeData: function(data_hash) {
+        window.console && console.log("_calculateCumulativeData",data_hash);
         var total_points = 0;
         var total_accepted = 0;
         for ( var sprint in data_hash ) {
@@ -251,7 +262,6 @@ Ext.define('CustomApp', {
                 }
             }
         });
-        window.console && console.log( velocity_array );
         if ( velocity_array.length < 3 ) { 
             return sprints;
         }
@@ -305,12 +315,58 @@ Ext.define('CustomApp', {
         return sprints;
     },
     _showChart: function(data_hash){
-        window.console && console.log("_showChart", data_hash, this.show_teams);
+        window.console && console.log("_showChart", data_hash, this.show_teams, this.team_data );
         if ( this.show_teams ) {
-            this._showSegregatedChart();
+            this._showSegregatedChart(data_hash);
         } else {
             this._showCombinedChart(data_hash);
         }
+    },
+    _showSegregatedChart: function(data_hash) {
+        window.console && console.log("_showSegregatedChart",data_hash,this.team_data);
+        data_hash = this._normalizeTeamData(data_hash,this.team_data);
+        var scope = 100;
+        var data_array = this._hashToArray(data_hash);
+        var current_sprint_index = this._getCurrentSprintIndex(data_array);
+        var chart_store = Ext.create('Rally.data.custom.Store',{
+            autoLoad: true,
+            data: data_array
+        });
+        
+        var series = [];
+        //series.push({type:'line',dataIndex:'CumulativePointsPlanned',name:'Points Planned',visible:true});
+        for ( var team_id in this.team_names ) {
+            if ( this.team_names.hasOwnProperty(team_id) ) {
+                series.push({type: 'line', dataIndex: this.team_names[team_id], name: this.team_names[team_id], visible: true});
+            }
+        }
+        if(this.chart){this.chart.destroy();}
+        this.chart = Ext.create('Rally.ui.chart.Chart',{
+            height: 400,
+            store: chart_store,
+            series: series,
+            chartConfig: {
+                title: {text:'Program Burn Up',align:'center'},
+                colors: ['#696','#00f','#c33'],
+                xAxis: {
+                    categories: this._getIterationNames(data_array),
+                    plotLines: [{color:'#000',width:2,value:current_sprint_index}]
+                },
+                yAxis: [{
+                    title: { text:"" },
+                    max: 110,
+                    min: 0,
+                    labels: {
+                        formatter: function(){ return this.value + "%"; }
+                    },
+                    plotLines: [
+                        {color:'#000',width:2,value:0},
+                        {color:'#f00',width:2,value:scope}
+                    ]
+                }]
+            }
+        });
+        this.down('#chart_box').add(this.chart);
     },
     _showCombinedChart: function(data_hash) {
         var data_array = this._hashToArray(data_hash);
@@ -363,13 +419,48 @@ Ext.define('CustomApp', {
         var the_array = [];
         for (var key in hash ) {
             if (hash.hasOwnProperty(key)){
-                // not sure why the model can't be pushed straight into the store
+                // not sure why the model can't be pushed straight into the store        
                 if ( hash[key].get('PointsPlanned') && hash[key].get('PointsPlanned') > 0 ) {
-                    the_array.push(hash[key].getData());
+                    the_array.push(hash[key].data);
                 }
             }
         }
         return the_array;
+    },
+    _normalizeTeamData: function(data_hash,team_data) {
+        window.console && console.log( "_normalizeTeamData",data_hash,team_data);
+        var me = this;
+        for ( var team_name in team_data ) {
+            if (team_data.hasOwnProperty(team_name)){
+                var team_high = 0;
+                var one_team = team_data[team_name];
+                var cumulative_points_accepted = null;
+                var cumulative_points_planned = null;
+                for ( var sprint in data_hash ) {
+                    if ( data_hash.hasOwnProperty(sprint) ) {
+                        if ( one_team[sprint] ) {
+                            cumulative_points_accepted = one_team[sprint].get('CumulativePointsAccepted');
+                            cumulative_points_planned = one_team[sprint].get('CumulativePointsPlanned');
+                        }
+                        data_hash[sprint].set(team_name,cumulative_points_accepted);
+                        team_high = cumulative_points_planned;
+                    }
+                }
+                // second cycle to turn into percentages
+                for ( var sprint in data_hash) {
+                    if ( data_hash.hasOwnProperty(sprint) ) {
+                        if ( team_high > 0 && data_hash[sprint].get(team_name) !== null && data_hash[sprint].get('TemporalState') !== "Future") {
+                            var percentage = me._limitDecimals(100 * data_hash[sprint].get(team_name) / team_high);
+                            data_hash[sprint].set(team_name,percentage);
+                        } else {
+                            data_hash[sprint].set(team_name,null);
+                        }
+                    }
+                }
+                
+            }
+        }
+        return data_hash;
     },
     _limitDecimals: function(initial_value) {
         return parseInt( 10*initial_value, 10 ) / 10;
