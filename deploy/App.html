@@ -137,7 +137,7 @@
             Ext.define('CustomApp', {
                 extend: 'Rally.app.App',
                 componentCls: 'app',
-                version: "0.2",
+                version: "0.3",
                 defaults: { margin: 5 },
                 items: [
                     {xtype:'container',itemId:'selector_box'},
@@ -346,6 +346,7 @@
                 _setTrend: function(sprints,scope) {
                     // Use Linear Least Squares: it assumes x is good and error is concentrated in Y values
                     window.console && console.log("_setTrend");
+                    var me = this;
                     var velocity_array = [];
                     var x_array = [];
                     var got_one = false;
@@ -383,7 +384,7 @@
                     Ext.Array.each(sprints,function(sprint,index){
                         if (index>=x_array[0]) {
                             if (a*index+b <= scope ) {
-                                sprint.TrendPoint=a*index + b;
+                                sprint.TrendPoint=me._limitDecimals(a*index + b);
                             } else {
                                 sprint.TrendPoint = scope;
                             }
@@ -401,7 +402,7 @@
                         var start_point = sprints.length-1;
                         while( added_counter <= MAX_EXTRA && trend_point <=scope ) {
                             var x = start_point + added_counter;
-                            trend_point = a*x + b;
+                            trend_point = me._limitDecimals(a*x + b);
                             sprints.push({
                                 Name:"+" + added_counter,
                                 TrendPoint: trend_point,
@@ -473,6 +474,9 @@
                         }
                     }
                     return the_array;
+                },
+                _limitDecimals: function(initial_value) {
+                    return parseInt( 10*initial_value, 10 ) / 10;
                 }
                 
             });
