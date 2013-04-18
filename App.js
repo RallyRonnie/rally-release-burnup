@@ -16,7 +16,11 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     version: "0.2",
     defaults: { margin: 5 },
-    items: [{xtype:'container',itemId:'selector_box'},{xtype:'container',itemId:'chart_box'}],
+    items: [
+        {xtype:'container',itemId:'selector_box'},
+        {xtype:'container',itemId:'chart_box'},
+        {xtype:'container',itemId:'notes',html:'This chart displays only sprints that contain artifacts associated with the chosen release'}
+    ],
     selected_release: null,
     items_in_release: [],
     applied_state:null,
@@ -77,8 +81,31 @@ Ext.define('CustomApp', {
                     Ext.Array.each(data,function(item){
                         me.release_oids.push(item.get('ObjectID'));
                     });
-                    me._getIterationsInRange(me.selected_release.get('ReleaseStartDate'),me.selected_release.get('ReleaseDate'));
+                    //me._getIterationsInRange(me.selected_release.get('ReleaseStartDate'),me.selected_release.get('ReleaseDate'));
+                    me._getIterations();
                 }
+            }
+        });
+    },
+    _getIterations: function(){
+        var me = this;
+        this.iterations = {};
+
+        Ext.create('Rally.data.WsapiDataStore',{
+            model: 'Iteration',
+            autoLoad: true,
+            sorters: [{ property: 'StartDate' } ],
+            listeners: {
+                load: function(store,data,success){
+                    Ext.Array.each(data,function(item){
+                        if (!me.iterations[item.get('Name')]) {
+                            me.iterations[item.get('Name')] = [];
+                        }
+                        me.iterations[item.get('Name')].push(item);
+                    });
+                    me._getItemsInRelease();
+                },
+                scope: this
             }
         });
     },
@@ -265,7 +292,7 @@ console.log("y=" + a + "x" + "+" + b);
         return sprints;
     },
     _showChart: function(data_hash){
-        window.console && console.log("_showChart");
+        window.console && console.log("_showChart", data_hash);
         var data_array = this._hashToArray(data_hash);
         var scope = data_array[data_array.length-1].CumulativePointsPlanned;
         data_array = this._setTrend(data_array,scope);
@@ -314,11 +341,12 @@ console.log("y=" + a + "x" + "+" + b);
     },
     _hashToArray: function(hash) {
         var the_array = [];
-        var today = Rally.util.DateTime.toIsoString(new Date(),false).replace(/T.*$/,"");
         for (var key in hash ) {
             if (hash.hasOwnProperty(key)){
                 // not sure why the model can't be pushed straight into the store
-                the_array.push(hash[key].getData());
+                if ( hash[key].get('PointsPlanned') && hash[key].get('PointsPlanned') > 0 ) {
+                    the_array.push(hash[key].getData());
+                }
             }
         }
         return the_array;
