@@ -139,11 +139,13 @@
                 componentCls: 'app',
                 version: "0.5",
                 defaults: { margin: 5 },
-                show_teams: true,
+                show_teams: false,
                 items: [
                     {xtype:'container',itemId:'selector_box'},
                     {xtype:'container',itemId:'chart_box'},
-                    {xtype:'container',itemId:'notes',html:'This chart displays only sprints that contain artifacts associated with the chosen release'}
+                    {xtype:'container',itemId:'notes',html:'This chart displays only sprints that contain artifacts associated' +
+                            ' with the chosen release and are based on the points associated with those artifacts. ' +
+                            'The red scope line is based only on items associated with both the release and the iteration. '}
                 ],
                 selected_release: null,
                 items_in_release: [],
