@@ -14,7 +14,7 @@
 Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
-    version: "0.3",
+    version: "0.5",
     defaults: { margin: 5 },
     show_teams: true,
     items: [
@@ -27,6 +27,9 @@ Ext.define('CustomApp', {
     applied_state:null,
     launch: function() {
         this._addTimeboxSelector();
+    },
+    _log: function(msg) {
+        console.log( new Date(), msg );  
     },
     _addTimeboxSelector: function() {
         var me = this;
@@ -92,10 +95,12 @@ Ext.define('CustomApp', {
         Ext.create('Rally.data.WsapiDataStore',{
             model: 'Iteration',
             autoLoad: true,
+            limit: 'Infinity',
             sorters: [{ property: 'StartDate' } ],
             fetch: ['Name','Project','StartDate','EndDate','ObjectID'],
             listeners: {
                 load: function(store,data,success){
+                    me._log("Found " + data.length + " iterations");
                     Ext.Array.each(data,function(item){
                         me.team_names[item.get('Project').ObjectID] = item.get('Project').Name;
                         me.team_data[item.get('Project').Name] = {};
@@ -141,7 +146,7 @@ Ext.define('CustomApp', {
         });
     },
     _getItemsInRelease: function() {
-        window.console && console.log("_getItemsInRelease");
+        this._log("_getItemsInRelease");
         var me = this;
         this.item_store = Ext.create('Rally.data.WsapiDataStore',{
             model: 'UserStory',
@@ -151,6 +156,7 @@ Ext.define('CustomApp', {
             fetch:['PlanEstimate','ScheduleState','Iteration','Name','Project','ObjectID','EndDate','StartDate'],
             listeners: {
                 load: function(store,data,success){
+                    me._log("Found " + data.length + " stories" );
                     this.items_in_release = data;
                     this._makeIterationSlices();
                 },
@@ -168,7 +174,7 @@ Ext.define('CustomApp', {
         return date_array;
     },
     _makeIterationSlices: function() {
-        window.console && console.log( "_makeIterationSlices");
+        this._log( "_makeIterationSlices");
         var me = this;
         var data_hash = {}; // key will be name
         for ( var name in this.iterations ) {
@@ -206,16 +212,16 @@ Ext.define('CustomApp', {
                         data_hash[sprint].addScheduledItem(record.getData());
                         me.team_data[project_name][sprint].addScheduledItem(record.getData());
                     } else { 
-                        window.console && console.log("WARNING: Iteration not defined",sprint);
+                        me._log("WARNING: Iteration not defined",sprint);
                     }
                 } else {
-                    window.console && console.log("WARNING: Item not in sprint", record );
+                    me._log("WARNING: Item not in any sprint", record );
                 }
             });
             data_hash = this._calculateCumulativeData(data_hash);
             for ( var project_name in me.team_data ) {
                 if ( me.team_data.hasOwnProperty(project_name) ) {
-                    window.console && console.log("...",project_name);
+                    this._log("...",project_name);
                     me.team_data[project_name] = this._calculateCumulativeData(me.team_data[project_name])
                 }
             }
@@ -223,7 +229,7 @@ Ext.define('CustomApp', {
         }
     },
     _calculateCumulativeData: function(data_hash) {
-        window.console && console.log("_calculateCumulativeData",data_hash);
+        this._log("_calculateCumulativeData",data_hash);
         var total_points = 0;
         var total_accepted = 0;
         for ( var sprint in data_hash ) {
@@ -247,7 +253,7 @@ Ext.define('CustomApp', {
     },
     _setTrend: function(sprints,scope) {
         // Use Linear Least Squares: it assumes x is good and error is concentrated in Y values
-        window.console && console.log("_setTrend");
+        this._log("_setTrend");
         var me = this;
         var velocity_array = [];
         var x_array = [];
@@ -315,7 +321,7 @@ Ext.define('CustomApp', {
         return sprints;
     },
     _showChart: function(data_hash){
-        window.console && console.log("_showChart", data_hash, this.show_teams, this.team_data );
+        this._log("_showChart", data_hash, this.show_teams, this.team_data );
         if ( this.show_teams ) {
             this._showSegregatedChart(data_hash);
         } else {
@@ -323,7 +329,7 @@ Ext.define('CustomApp', {
         }
     },
     _showSegregatedChart: function(data_hash) {
-        window.console && console.log("_showSegregatedChart",data_hash,this.team_data);
+        this._log("_showSegregatedChart",data_hash,this.team_data);
         data_hash = this._normalizeTeamData(data_hash,this.team_data);
         var scope = 100;
         var data_array = this._hashToArray(data_hash);
@@ -428,7 +434,7 @@ Ext.define('CustomApp', {
         return the_array;
     },
     _normalizeTeamData: function(data_hash,team_data) {
-        window.console && console.log( "_normalizeTeamData",data_hash,team_data);
+        this._log( "_normalizeTeamData",data_hash,team_data);
         var me = this;
         for ( var team_name in team_data ) {
             if (team_data.hasOwnProperty(team_name)){
